@@ -1,0 +1,14 @@
+.*
+
+/gpt2
+/*.txt
+
+*.o
+*.s
+*.out*
+
+*.gguf
+
+!.gitignore
+!.editorconfig
+!.clang-format
