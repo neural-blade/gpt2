@@ -114,7 +114,8 @@ static inline uint64_t align_offset(uint64_t offset, uint64_t alignment)
 	return rem == 0 ? offset : offset + alignment - rem;
 }
 
-int gguf_get_value(gguf_file_t *file, char *key, gguf_metadata_value_t *value)
+int gguf_get_value(const gguf_file_t *file, const char *key,
+		   gguf_metadata_value_t *value)
 {
 	for (uint64_t i = 0; i < file->header.metadata_kv_count; ++i) {
 		if (strcmp(key, file->metadata_kv[i].key.string) == 0) {
@@ -251,7 +252,7 @@ static void show_tensor_info(gguf_tensor_info_t t_info)
 	printf("@%" PRIu64 "\n", t_info.offset);
 }
 
-void gguf_show(gguf_file_t *file)
+void gguf_show(const gguf_file_t *file)
 {
 	printf("\n================== GGUF ==================\n");
 	printf("GGUF Version: %" PRIu32 "\n", file->header.version);
@@ -308,4 +309,14 @@ void gguf_free(gguf_file_t *file)
 	for (uint64_t i = 0; i < file->header.tensor_count; ++i)
 		free(file->tensor_infos[i].name.string);
 	free(file->tensor_infos);
+}
+
+const gguf_tensor_info_t *gguf_find_tensor_info(const gguf_file_t *file,
+						const char *t_name)
+{
+	for (uint64_t i = 0; i < file->header.tensor_count; ++i)
+		if (strcmp(t_name, file->tensor_infos[i].name.string) == 0)
+			return &file->tensor_infos[i];
+
+	return NULL;
 }

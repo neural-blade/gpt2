@@ -104,10 +104,12 @@ typedef struct _gguf_metadata_kv_t {
 	gguf_metadata_value_t value;
 } gguf_metadata_kv_t;
 
+#define MAX_TENSOR_N_DIMS 4
+
 typedef struct _gguf_tensor_info_t {
 	gguf_string_t name;
 	uint32_t n_dimensions;
-	uint64_t dimensions[4];
+	uint64_t dimensions[MAX_TENSOR_N_DIMS];
 	ggml_type type;
 	uint64_t offset;
 } gguf_tensor_info_t;
@@ -120,15 +122,17 @@ typedef struct _gguf_file_t {
 } gguf_file_t;
 
 int gguf_load(const char *filename, gguf_file_t *file);
-int gguf_get_value(gguf_file_t *file, char *key, gguf_metadata_value_t *value);
-void gguf_show(gguf_file_t *file);
+int gguf_get_value(const gguf_file_t *file, const char *key,
+		   gguf_metadata_value_t *value);
+void gguf_show(const gguf_file_t *file);
 void gguf_free(gguf_file_t *file);
+const gguf_tensor_info_t *gguf_find_tensor_info(const gguf_file_t *file,
+						const char *t_name);
 
-static inline const float *gguf_get_f32tensor(gguf_file_t *file,
-					      uint64_t tensor_id)
+static inline const float *gguf_get_f32tensor(const uint8_t *t_data,
+					      const gguf_tensor_info_t *t_info)
 {
-	return (const float *)(file->tensor_data +
-			       file->tensor_infos[tensor_id].offset);
+	return (const float *)(t_data + t_info->offset);
 }
 
 #endif /* __GGUF_H */
