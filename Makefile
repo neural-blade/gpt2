@@ -1,6 +1,6 @@
 CC ?= cc
 BASE_CFLAGS = -Wall -Wextra -Wpedantic -std=c99
-BASE_LDFLAGS =
+BASE_LDFLAGS = -lm
 
 SRCS := $(wildcard src/*.c)
 OBJS := $(SRCS:%.c=%.o)
@@ -17,9 +17,11 @@ SAN_FLAGS = -fsanitize=address,undefined
 .PHONY: all clean debug san asm
 
 all: CFLAGS = $(BASE_CFLAGS) $(NATIVE_CFLAGS) $(OPT_CFLAGS)
+all: LDFLAGS = $(BASE_LDFLAGS)
 all: $(TARGET)
 
 debug: CFLAGS = $(BASE_CFLAGS) $(DEBUG_CFLAGS)
+debug: LDFLAGS = $(BASE_LDFLAGS)
 debug: $(TARGET)
 
 san: CFLAGS = $(BASE_CFLAGS) $(DEBUG_CFLAGS) $(SAN_FLAGS)
