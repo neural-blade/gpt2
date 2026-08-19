@@ -6,9 +6,10 @@ void add_f32v(const float *restrict a, const float *restrict b,
 	for (uint64_t i = 0; i < len; ++i) c[i] = a[i] + b[i];
 }
 
-void add_f32v_inplace(float *a, const float *restrict b, uint64_t len)
+void add_f32v_inplace(float *a, const float *restrict b, float alpha,
+		      uint64_t len)
 {
-	for (uint64_t i = 0; i < len; ++i) a[i] += b[i];
+	for (uint64_t i = 0; i < len; ++i) a[i] += alpha * b[i];
 }
 
 float sum_f32v(const float *restrict a, uint64_t len)
@@ -26,9 +27,11 @@ float dot_f32v(const float *restrict a, const float *restrict b, uint64_t len)
 }
 
 void gemm_f32(const float *restrict a, const float *restrict b,
-	      float *restrict c, uint64_t m, uint64_t n, uint64_t k)
+	      float *restrict c, float alpha, uint64_t m, uint64_t n,
+	      uint64_t k)
 {
 	for (uint64_t i = 0; i < m; ++i)
 		for (uint64_t j = 0; j < n; ++j)
-			c[i * n + j] = dot_f32v(&a[i * k], &b[i * k], k);
+			c[i * n + j] = dot_f32v(&a[i * k], &b[i * k], k) *
+				       alpha;
 }

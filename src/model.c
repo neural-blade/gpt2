@@ -71,10 +71,10 @@ int model_init(model_t *model, const gguf_file_t *file)
 	snprintf(key, sizeof(key), "%s.block_count", value.string.string);
 	gguf_get_value(file, key, &value);
 
-	model->blocks_count = value.uint32;
-	model->blocks = malloc(model->blocks_count * sizeof(*model->blocks));
+	model->block_count = value.uint32;
+	model->blocks = malloc(model->block_count * sizeof(*model->blocks));
 
-	for (uint32_t i = 0; i < model->blocks_count; ++i)
+	for (uint32_t i = 0; i < model->block_count; ++i)
 		transformer_block_init(&model->blocks[i], file, i);
 
 	tensor_init(&model->output_norm_b, file, "output_norm.bias");
