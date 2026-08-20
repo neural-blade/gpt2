@@ -13,6 +13,8 @@ typedef struct _transformer_ctx_t {
 	float *ffn;
 	float *proj;
 
+	float *logits;
+
 	float *k_cache;
 	float *v_cache;
 	uint64_t cache_len;

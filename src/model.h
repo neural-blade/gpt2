@@ -18,6 +18,7 @@ typedef struct _model_t {
 	uint32_t n_ctx;
 	uint32_t n_embd;
 	uint32_t n_head;
+	uint32_t n_ff;
 } model_t;
 
 int model_init(model_t *model, const gguf_file_t *file);

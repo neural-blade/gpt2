@@ -140,6 +140,14 @@ void attn_v_weighted_sum(const float *restrict p, const float *restrict v,
 	}
 }
 
+void gelu_actv(float *restrict x, uint64_t len)
+{
+	for (uint64_t i = 0; i < len; ++i)
+		x[i] = 0.5 * x[i] *
+		       (1 + tanhf(0.7978845608f * x[i] +
+				  0.0356774081f * x[i] * x[i] * x[i]));
+}
+
 void transformer_forward(transformer_ctx_t *ctx, model_t *model,
 			 float *embeddings, uint64_t seq_len)
 {
@@ -171,13 +179,35 @@ void transformer_forward(transformer_ctx_t *ctx, model_t *model,
 				    model->n_head, head_len);
 
 		proj(ctx->norm, &block.attn_output_w, &block.attn_output_b,
-		     ctx->qkv, seq_len);
+		     ctx->proj, seq_len);
 
-		add_f32v(ctx->hidden, ctx->qkv, ctx->norm,
+		add_f32v(ctx->hidden, ctx->proj, ctx->qkv,
 			 seq_len * model->n_embd);
 
 		// FFN
+		layer_norm(ctx->qkv, block.ffn_norm_w.data,
+			   block.ffn_norm_b.data, ctx->norm, seq_len,
+			   model->n_embd);
+
+		proj(ctx->norm, &block.ffn_up_w, &block.ffn_up_b, ctx->proj,
+		     seq_len);
+
+		gelu_actv(ctx->proj, seq_len * model->n_ff);
+
+		proj(ctx->proj, &block.ffn_down_w, &block.ffn_down_b, ctx->ffn,
+		     seq_len);
+
+		add_f32v(ctx->qkv, ctx->ffn, ctx->hidden,
+			 seq_len * model->n_embd);
 	}
+
+	layer_norm(ctx->hidden, model->output_norm_w.data,
+		   model->output_norm_b.data, ctx->norm, seq_len,
+		   model->n_embd);
+
+	gemm_f32(&ctx->norm[(seq_len - 1) * model->n_embd],
+		 model->token_embd_w.data, ctx->logits, 1.0f, 1, 50257,
+		 model->n_embd);
 
 	ctx->cache_len += seq_len;
 }
