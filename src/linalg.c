@@ -32,6 +32,6 @@ void gemm_f32(const float *restrict a, const float *restrict b,
 {
 	for (uint64_t i = 0; i < m; ++i)
 		for (uint64_t j = 0; j < n; ++j)
-			c[i * n + j] = dot_f32v(&a[i * k], &b[i * k], k) *
+			c[i * n + j] = dot_f32v(&a[i * k], &b[j * k], k) *
 				       alpha;
 }

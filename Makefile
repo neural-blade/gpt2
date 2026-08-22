@@ -8,16 +8,17 @@ ASMS := $(SRCS:%.c=%.s)
 
 TARGET := gpt2
 
-OPT_CFLAGS = -O3
+OPT_CFLAGS = -O3 -ffast-math
 NATIVE_CFLAGS = -march=native
 DEBUG_CFLAGS = -g -Og
+OPT_LDFLAGS = -lmvec
 ASM_FLAGS = -fverbose-asm
 SAN_FLAGS = -fsanitize=address,undefined
 
 .PHONY: all clean debug san asm
 
 all: CFLAGS = $(BASE_CFLAGS) $(NATIVE_CFLAGS) $(OPT_CFLAGS)
-all: LDFLAGS = $(BASE_LDFLAGS)
+all: LDFLAGS = $(BASE_LDFLAGS) $(OPT_LDFLAGS)
 all: $(TARGET)
 
 debug: CFLAGS = $(BASE_CFLAGS) $(DEBUG_CFLAGS)
