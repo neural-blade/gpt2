@@ -4,7 +4,6 @@
 #include <inttypes.h>
 #include "model.h"
 #include "gguf.h"
-#include "linalg.h"
 #include "transformer.h"
 #include "embedding.h"
 
@@ -113,6 +112,39 @@ void model_free(model_t *model)
 	free(model->vocab);
 }
 
+static void print_token(const char *token)
+{
+	static uint32_t unicode_id	= 0;
+	static uint32_t bytes_remaining = 0;
+
+	uint8_t *bytes			= (uint8_t *)token;
+	uint32_t len			= strlen(token);
+
+	for (uint32_t i = 0; i < len; ++i) {
+		uint8_t b = bytes[i];
+		if (bytes_remaining == 0) {
+			if ((b & 0x80) == 0) { // 1000 0000
+				unicode_id	= b & 0x7F;
+				bytes_remaining = 0;
+			} else if ((b & 0xE0) == 0xC0) { // 1110 0000
+				unicode_id	= b & 0x1F;
+				bytes_remaining = 1;
+			} else if ((b & 0xF0) == 0xE0) { // 1111 0000
+				unicode_id	= b & 0x0F;
+				bytes_remaining = 2;
+			} else if ((b & 0xF8) == 0xF0) { // 1111 1000
+				unicode_id	= b & 0x07;
+				bytes_remaining = 3;
+			}
+		} else {
+			unicode_id = (unicode_id << 6) | (b & 0x3F);
+			--bytes_remaining;
+		}
+
+		if (bytes_remaining == 0) putchar(unicode_id & 0xFF);
+	}
+}
+
 void model_run(model_t *model, uint32_t *token_ids, uint32_t token_count,
 	       uint32_t max_tokens)
 {
@@ -125,9 +157,10 @@ void model_run(model_t *model, uint32_t *token_ids, uint32_t token_count,
 	// Transformer
 	for (uint32_t i = 0; i < max_tokens; ++i) {
 		uint32_t total_token = token_count + i;
+		uint32_t next_token_id;
 		if (total_token >= model->n_ctx) break;
-		uint32_t next_token_id = transformer_forward(ctx, model);
-		printf("%s", model->vocab[next_token_id]);
+		transformer_forward(ctx, model, &next_token_id);
+		print_token(model->vocab[next_token_id]);
 		fflush(stdout);
 
 		get_embd(&next_token_id, &model->token_embd_w,

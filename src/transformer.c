@@ -121,14 +121,6 @@ static void kv_cache_append(const float *qkv, float *k, float *v,
 	}
 }
 
-static float max(const float *restrict v, uint64_t len)
-{
-	float max = v[0];
-	for (uint64_t i = 1; i < len; ++i)
-		if (v[i] > max) max = v[i];
-	return max;
-}
-
 static uint32_t max_id(const float *restrict v, uint64_t len)
 {
 	float max   = v[0];
@@ -157,7 +149,7 @@ static void softmax(float *restrict scores, uint64_t n_head,
 			uint64_t h_offset = j * curr_head_len;
 			float *row	  = &scores[t_offset + h_offset];
 
-			float max_val	  = max(row, curr_head_len);
+			float max_val	  = row[max_id(row, curr_head_len)];
 			float sum	  = 0.0f;
 			for (uint64_t k = 0; k < curr_head_len; ++k) {
 				row[k] = expf(row[k] - max_val);
@@ -208,7 +200,8 @@ static void gelu_actv(float *restrict x, uint64_t len)
 				  0.0356774081f * x[i] * x[i] * x[i]));
 }
 
-uint32_t transformer_forward(transformer_ctx_t *ctx, model_t *model)
+void transformer_forward(transformer_ctx_t *ctx, model_t *model,
+			 uint32_t *gen_token)
 {
 	for (uint32_t i = 0; i < model->block_count; ++i) {
 		transformer_blk_t block = model->blocks[i];
@@ -272,5 +265,5 @@ uint32_t transformer_forward(transformer_ctx_t *ctx, model_t *model)
 	ctx->cache_len += ctx->seq_len;
 	ctx->seq_len = 1;
 
-	return max_id(ctx->logits, model->vocab_count);
+	*gen_token   = max_id(ctx->logits, model->vocab_count);
 }
