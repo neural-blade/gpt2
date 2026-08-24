@@ -63,6 +63,22 @@ static int transformer_block_init(transformer_blk_t *block,
 	return 0;
 }
 
+static uint8_t unicode_to_byte[512];
+
+static void init_unicode_to_byte(void)
+{
+	uint32_t n = 0;
+
+	for (uint32_t b = 0; b < 256; ++b) {
+		uint32_t idx = b;
+		if (!(b >= 0x21 && b <= 0x7E) && !(b >= 0xA1 && b <= 0xAC) &&
+		    !(b >= 0xAE && b <= 0xFF))
+			idx = 256 + n++;
+
+		unicode_to_byte[idx] = b;
+	}
+}
+
 int model_init(model_t *model, const gguf_file_t *file)
 {
 	gguf_metadata_value_t value;
@@ -101,6 +117,8 @@ int model_init(model_t *model, const gguf_file_t *file)
 		model->vocab[i] = malloc(value.array.array[i].string.len + 1);
 		strcpy(model->vocab[i], value.array.array[i].string.string);
 	}
+
+	init_unicode_to_byte();
 
 	return 0;
 }
@@ -141,7 +159,7 @@ static void print_token(const char *token)
 			--bytes_remaining;
 		}
 
-		if (bytes_remaining == 0) putchar(unicode_id & 0xFF);
+		if (bytes_remaining == 0) putchar(unicode_to_byte[unicode_id]);
 	}
 }
 
