@@ -3,7 +3,12 @@
 
 #include <stdint.h>
 #include "gguf.h"
-#include "tensor.h"
+
+typedef struct _tensor_t {
+	const float *data;
+	uint64_t dimensions[MAX_TENSOR_N_DIMS];
+	uint32_t n_dimensions;
+} tensor_t;
 
 typedef struct _transformer_blk_t {
 	tensor_t attn_qkv_b;
@@ -35,6 +40,7 @@ typedef struct _model_t {
 	uint32_t n_ctx;
 	uint32_t n_embd;
 	uint32_t n_head;
+	uint32_t head_len;
 	uint32_t n_ff;
 	float epsilon;
 } model_t;

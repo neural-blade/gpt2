@@ -5,7 +5,6 @@
 #include "model.h"
 #include "gguf.h"
 #include "transformer.h"
-#include "embedding.h"
 
 static int tensor_init(tensor_t *tensor, const gguf_file_t *file,
 		       const char *t_name)
@@ -89,7 +88,8 @@ int model_init(model_t *model, const gguf_file_t *file)
 	gguf_get_value(file, "gpt2.embedding_length", &value);
 	model->n_embd = value.uint32;
 	gguf_get_value(file, "gpt2.attention.head_count", &value);
-	model->n_head = value.uint32;
+	model->n_head	= value.uint32;
+	model->head_len = model->n_embd / model->n_head;
 	gguf_get_value(file, "gpt2.feed_forward_length", &value);
 	model->n_ff = value.uint32;
 	gguf_get_value(file, "gpt2.attention.layer_norm_epsilon", &value);
@@ -148,23 +148,17 @@ static void print_token(const char *token)
 void model_run(model_t *model, uint32_t *token_ids, uint32_t token_count,
 	       uint32_t max_tokens)
 {
-	transformer_ctx_t *ctx = transformer_create(model, token_count);
+	transformer_ctx_t *ctx = transformer_create(model, token_ids,
+						    token_count);
 
-	// Embeddings
-	get_embd(token_ids, &model->token_embd_w, &model->pos_embd_w,
-		 ctx->hidden, token_count, 0);
-
-	// Transformer
 	for (uint32_t i = 0; i < max_tokens; ++i) {
 		uint32_t total_token = token_count + i;
 		uint32_t next_token_id;
 		if (total_token >= model->n_ctx) break;
-		transformer_forward(ctx, model, &next_token_id);
+		transformer_forward(ctx, model);
+		next_token_id = transformer_get_token(ctx, total_token);
 		print_token(model->vocab[next_token_id]);
 		fflush(stdout);
-
-		get_embd(&next_token_id, &model->token_embd_w,
-			 &model->pos_embd_w, ctx->hidden, 1, total_token);
 	}
 	printf("\n");
 
