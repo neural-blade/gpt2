@@ -164,12 +164,19 @@ int gguf_load(const char *filename, gguf_file_t *file)
 		close(fd);
 		return -4;
 	}
+
 	size_t tensor_data_size = file_size - data_start;
 	file->tensor_data	= malloc(tensor_data_size);
-	if (read(fd, file->tensor_data, tensor_data_size) !=
-	    (ssize_t)tensor_data_size) {
-		close(fd);
-		return -5;
+
+	size_t total_read	= 0;
+	while (total_read < tensor_data_size) {
+		ssize_t n = read(fd, file->tensor_data + total_read,
+				 tensor_data_size - total_read);
+		if (n <= 0) {
+			close(fd);
+			return -5;
+		}
+		total_read += n;
 	}
 
 	close(fd);
