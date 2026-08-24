@@ -2,14 +2,8 @@
 #include <math.h>
 #include <string.h>
 
-void add_f32v(const float *restrict a, const float *restrict b,
-	      float *restrict c, uint64_t len)
-{
-	for (uint64_t i = 0; i < len; ++i) c[i] = a[i] + b[i];
-}
-
-void add_f32v_inplace(float *a, const float *restrict b, float alpha,
-		      uint64_t len)
+void add_f32v(float *restrict a, const float *restrict b, float alpha,
+	      uint64_t len)
 {
 	for (uint64_t i = 0; i < len; ++i) a[i] += alpha * b[i];
 }
@@ -51,9 +45,9 @@ void pos_embd(float *restrict embd, const float *restrict pos_embd_w,
 	      uint32_t token_count, uint32_t initial_token, uint32_t hidden_dim)
 {
 	for (uint32_t i = 0; i < token_count; ++i)
-		add_f32v_inplace(&embd[i * hidden_dim],
-				 &pos_embd_w[(initial_token + i) * hidden_dim],
-				 1.0f, hidden_dim);
+		add_f32v(&embd[i * hidden_dim],
+			 &pos_embd_w[(initial_token + i) * hidden_dim], 1.0f,
+			 hidden_dim);
 }
 
 void layer_norm(const float *restrict in, const float *restrict weight,
@@ -88,7 +82,7 @@ void proj(const float *restrict in, const float *restrict weight,
 {
 	gemm_f32(in, weight, out, 1.0f, seq_len, out_dim, hidden_dim);
 	for (uint64_t i = 0; i < seq_len; ++i)
-		add_f32v_inplace(&out[i * out_dim], bias, 1.0f, out_dim);
+		add_f32v(&out[i * out_dim], bias, 1.0f, out_dim);
 }
 
 void attn_scores(const float *restrict q, const float *restrict k,
@@ -172,10 +166,10 @@ void attn_v_weighted_sum(const float *restrict p, const float *restrict v,
 			uint64_t head_base = j * head_len;
 
 			for (uint64_t k = 0; k < n_keys; ++k) {
-				add_f32v_inplace(&out[i * v_stride + head_base],
-						 &v[k * v_stride + head_base],
-						 p[row_base + j * n_keys + k],
-						 head_len);
+				add_f32v(&out[i * v_stride + head_base],
+					 &v[k * v_stride + head_base],
+					 p[row_base + j * n_keys + k],
+					 head_len);
 			}
 		}
 

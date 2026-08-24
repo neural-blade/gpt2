@@ -7,11 +7,8 @@ typedef struct _transformer_ctx_t {
 	uint32_t *token_ids;
 	float *hidden;
 
-	float *norm;
-	float *qkv;
-	float *scores;
-	float *ffn;
-	float *proj;
+	float *buf_narr;
+	float *buf_wide;
 
 	float *logits;
 
@@ -29,13 +26,13 @@ transformer_ctx_t *transformer_create(model_t *model, uint32_t *token_ids,
 
 	ctx->token_ids	       = malloc(model->n_ctx * sizeof(uint32_t));
 	ctx->hidden    = malloc(model->n_embd * seq_len * sizeof(float));
-	ctx->norm      = malloc(model->n_embd * seq_len * sizeof(float));
-	ctx->qkv       = malloc(3 * model->n_embd * seq_len * sizeof(float));
-	ctx->scores    = malloc(model->n_ctx * model->n_head * seq_len *
+
+	ctx->buf_narr  = malloc(model->n_ff * seq_len * sizeof(float));
+	ctx->buf_wide  = malloc(model->n_head * model->n_ctx * seq_len *
 				sizeof(float));
-	ctx->ffn       = malloc(model->n_embd * seq_len * sizeof(float));
-	ctx->proj      = malloc(model->n_ff * seq_len * sizeof(float));
+
 	ctx->logits    = malloc(model->vocab_count * sizeof(float));
+
 	ctx->k_cache   = malloc(model->block_count * model->n_ctx *
 				model->n_embd * sizeof(float));
 	ctx->v_cache   = malloc(model->block_count * model->n_ctx *
@@ -52,11 +49,8 @@ void transformer_destroy(transformer_ctx_t *ctx)
 {
 	free(ctx->token_ids);
 	free(ctx->hidden);
-	free(ctx->norm);
-	free(ctx->qkv);
-	free(ctx->scores);
-	free(ctx->ffn);
-	free(ctx->proj);
+	free(ctx->buf_narr);
+	free(ctx->buf_wide);
 	free(ctx->logits);
 	free(ctx->k_cache);
 	free(ctx->v_cache);
@@ -98,63 +92,65 @@ void transformer_forward(transformer_ctx_t *ctx, model_t *model)
 
 		// Attention
 		layer_norm(ctx->hidden, block->attn_norm_w.data,
-			   block->attn_norm_b.data, ctx->norm, ctx->seq_len,
+			   block->attn_norm_b.data, ctx->buf_wide, ctx->seq_len,
 			   model->n_embd, model->epsilon);
 
-		proj(ctx->norm, block->attn_qkv_w.data, block->attn_qkv_b.data,
-		     ctx->qkv, ctx->seq_len, block->attn_qkv_w.dimensions[0],
+		proj(ctx->buf_wide, block->attn_qkv_w.data,
+		     block->attn_qkv_b.data, ctx->buf_narr, ctx->seq_len,
+		     block->attn_qkv_w.dimensions[0],
 		     block->attn_qkv_w.dimensions[1]);
 
 		uint64_t c_offset = i * model->n_ctx * model->n_embd;
-		kv_cache_append(ctx->qkv, &ctx->k_cache[c_offset],
+		kv_cache_append(ctx->buf_narr, &ctx->k_cache[c_offset],
 				&ctx->v_cache[c_offset], ctx->cache_len,
 				model->n_embd, ctx->seq_len);
 
-		attn_scores(ctx->qkv, &ctx->k_cache[c_offset], ctx->scores,
-			    ctx->seq_len, ctx->cache_len, model->n_head,
-			    model->head_len);
+		attn_scores(ctx->buf_narr, &ctx->k_cache[c_offset],
+			    ctx->buf_wide, ctx->seq_len, ctx->cache_len,
+			    model->n_head, model->head_len);
 
-		softmax(ctx->scores, model->n_head, ctx->cache_len,
+		softmax(ctx->buf_wide, model->n_head, ctx->cache_len,
 			ctx->seq_len);
 
-		attn_v_weighted_sum(ctx->scores, &ctx->v_cache[c_offset],
-				    ctx->norm, ctx->seq_len, ctx->cache_len,
+		attn_v_weighted_sum(ctx->buf_wide, &ctx->v_cache[c_offset],
+				    ctx->buf_narr, ctx->seq_len, ctx->cache_len,
 				    model->n_head, model->head_len);
 
-		proj(ctx->norm, block->attn_output_w.data,
-		     block->attn_output_b.data, ctx->proj, ctx->seq_len,
+		proj(ctx->buf_narr, block->attn_output_w.data,
+		     block->attn_output_b.data, ctx->buf_wide, ctx->seq_len,
 		     block->attn_output_w.dimensions[0],
 		     block->attn_output_w.dimensions[1]);
 
-		add_f32v(ctx->hidden, ctx->proj, ctx->qkv,
+		add_f32v(ctx->hidden, ctx->buf_wide, 1.0f,
 			 ctx->seq_len * model->n_embd);
 
 		// FFN
-		layer_norm(ctx->qkv, block->ffn_norm_w.data,
-			   block->ffn_norm_b.data, ctx->norm, ctx->seq_len,
+		layer_norm(ctx->hidden, block->ffn_norm_w.data,
+			   block->ffn_norm_b.data, ctx->buf_wide, ctx->seq_len,
 			   model->n_embd, model->epsilon);
 
-		proj(ctx->norm, block->ffn_up_w.data, block->ffn_up_b.data,
-		     ctx->proj, ctx->seq_len, block->ffn_up_w.dimensions[0],
+		proj(ctx->buf_wide, block->ffn_up_w.data, block->ffn_up_b.data,
+		     ctx->buf_narr, ctx->seq_len, block->ffn_up_w.dimensions[0],
 		     block->ffn_up_w.dimensions[1]);
 
-		gelu_actv(ctx->proj, ctx->seq_len * model->n_ff);
+		gelu_actv(ctx->buf_narr, ctx->seq_len * model->n_ff);
 
-		proj(ctx->proj, block->ffn_down_w.data, block->ffn_down_b.data,
-		     ctx->ffn, ctx->seq_len, block->ffn_down_w.dimensions[0],
+		proj(ctx->buf_narr, block->ffn_down_w.data,
+		     block->ffn_down_b.data, ctx->buf_wide, ctx->seq_len,
+		     block->ffn_down_w.dimensions[0],
 		     block->ffn_down_w.dimensions[1]);
 
-		add_f32v(ctx->qkv, ctx->ffn, ctx->hidden,
+		add_f32v(ctx->hidden, ctx->buf_wide, 1.0f,
 			 ctx->seq_len * model->n_embd);
 	}
 
 	// Final layer norm
 	layer_norm(ctx->hidden, model->output_norm_w.data,
-		   model->output_norm_b.data, ctx->norm, ctx->seq_len,
+		   model->output_norm_b.data, ctx->buf_narr, ctx->seq_len,
 		   model->n_embd, model->epsilon);
 
 	// Output projection
-	gemm_f32(&ctx->norm[(ctx->seq_len - 1) * model->n_embd],
+	gemm_f32(&ctx->buf_narr[(ctx->seq_len - 1) * model->n_embd],
 		 model->token_embd_w.data, ctx->logits, 1.0f, 1,
 		 model->vocab_count, model->n_embd);
 
