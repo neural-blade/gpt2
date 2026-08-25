@@ -32,6 +32,10 @@ san: $(TARGET)
 asm: CFLAGS = $(BASE_CFLAGS) $(NATIVE_CFLAGS) $(OPT_CFLAGS) $(ASM_FLAGS)
 asm: $(ASMS)
 
+vgrind: CFLAGS = $(BASE_CFLAGS) -g $(NATIVE_CFLAGS) $(OPT_CFLAGS)
+vgrind: LDFLAGS = $(BASE_LDFLAGS) $(OPT_LDFLAGS)
+vgrind: $(TARGET)
+
 $(TARGET): $(OBJS)
 	$(CC) $(LDFLAGS) $^ -o $@
 
@@ -42,4 +46,4 @@ $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -S $< -o $@
 
 clean:
-	rm -rf $(TARGET) $(OBJS) $(ASMS) *.out*
+	rm -rf $(TARGET) $(OBJS) $(ASMS)

@@ -15,6 +15,7 @@
         packages = with pkgs; [
           gdb
           valgrind
+          kdePackages.kcachegrind
         ];
 
         shellHook = ''

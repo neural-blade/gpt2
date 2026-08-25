@@ -2,6 +2,7 @@
 
 /gpt2
 /*.txt
+/prof
 
 *.o
 *.s
