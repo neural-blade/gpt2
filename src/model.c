@@ -164,7 +164,7 @@ static void print_token(const char *token)
 }
 
 void model_run(model_t *model, uint32_t *token_ids, uint32_t token_count,
-	       uint32_t max_tokens)
+	       uint32_t max_tokens, transformer_perf_t *stats)
 {
 	transformer_ctx_t *ctx = transformer_create(model, token_ids,
 						    token_count);
@@ -179,6 +179,8 @@ void model_run(model_t *model, uint32_t *token_ids, uint32_t token_count,
 		fflush(stdout);
 	}
 	printf("\n");
+
+	if (stats) transformer_get_perf(ctx, stats);
 
 	transformer_destroy(ctx);
 }

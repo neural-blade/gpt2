@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "gguf.h"
+#include "perf.h"
 
 typedef struct _tensor_t {
 	const float *data;
@@ -48,6 +49,6 @@ typedef struct _model_t {
 int model_init(model_t *model, const gguf_file_t *file);
 void model_free(model_t *model);
 void model_run(model_t *model, uint32_t *token_ids, uint32_t token_count,
-	       uint32_t max_tokens);
+	       uint32_t max_tokens, transformer_perf_t *stats);
 
 #endif /* __MODEL_H */

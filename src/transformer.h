@@ -11,5 +11,6 @@ transformer_ctx_t *transformer_create(model_t *model, uint32_t *token_ids,
 void transformer_destroy(transformer_ctx_t *ctx);
 uint32_t transformer_get_token(transformer_ctx_t *ctx, uint32_t idx);
 void transformer_forward(transformer_ctx_t *ctx, model_t *model);
+void transformer_get_perf(transformer_ctx_t *ctx, transformer_perf_t *stats);
 
 #endif /* __TRANSFORMER_H */

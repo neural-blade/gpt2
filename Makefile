@@ -1,5 +1,5 @@
 CC ?= cc
-BASE_CFLAGS = -Wall -Wextra -Wpedantic -std=c99
+BASE_CFLAGS = -Wall -Wextra -Wpedantic -std=c99 -D_POSIX_C_SOURCE=199309L
 BASE_LDFLAGS = -lm
 
 SRCS := $(wildcard src/*.c)
