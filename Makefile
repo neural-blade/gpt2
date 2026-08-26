@@ -1,12 +1,21 @@
 CC ?= cc
+NVCC ?= nvcc
 BASE_CFLAGS = -Wall -Wextra -Wpedantic -std=c99 -D_POSIX_C_SOURCE=199309L
 BASE_LDFLAGS = -lm
+
+CUDA_ARCH ?= sm_89
+CUDA_BASE_CFLAGS = -std=c++17 -arch=$(CUDA_ARCH)
+CUDA_LDFLAGS = -lcudart
 
 SRCS := $(wildcard src/*.c)
 OBJS := $(SRCS:%.c=%.o)
 ASMS := $(SRCS:%.c=%.s)
 
-TARGET := gpt2
+CPU_SRCS := $(wildcard src/backend/*.c)
+CPU_OBJS := $(CPU_SRCS:%.c=%.o)
+
+CUDA_SRCS := $(wildcard src/backend/*.cu)
+CUDA_OBJS := $(CUDA_SRCS:%.cu=%.o)
 
 OPT_CFLAGS = -O3 -ffast-math
 NATIVE_CFLAGS = -march=native
@@ -14,6 +23,10 @@ DEBUG_CFLAGS = -g -Og
 OPT_LDFLAGS = -lmvec
 ASM_FLAGS = -fverbose-asm
 SAN_FLAGS = -fsanitize=address,undefined
+
+CUDA_DEBUG_CFLAGS = -g -G
+
+TARGET := gpt2
 
 .PHONY: all clean debug san asm
 
@@ -36,14 +49,30 @@ vgrind: CFLAGS = $(BASE_CFLAGS) -g $(NATIVE_CFLAGS) $(OPT_CFLAGS)
 vgrind: LDFLAGS = $(BASE_LDFLAGS) $(OPT_LDFLAGS)
 vgrind: $(TARGET)
 
-$(TARGET): $(OBJS)
+cuda: CFLAGS = $(BASE_CFLAGS) $(NATIVE_CFLAGS) $(OPT_CFLAGS) -DCUDA_BACKEND
+cuda: CUDA_CFLAGS = $(CUDA_BASE_CFLAGS)
+cuda: LDFLAGS = $(BASE_LDFLAGS) $(OPT_LDFLAGS)
+cuda: cuda-target
+
+cuda-debug: CFLAGS = $(BASE_CFLAGS) $(DEBUG_CFLAGS)
+cuda-debug: CUDA_CFLAGS = $(CUDA_BASE_CFLAGS) $(CUDA_DEBUG_CFLAGS)
+cuda-debug: LDFLAGS = $(BASE_LDFLAGS)
+cuda-debug: cuda-target
+
+$(TARGET): $(OBJS) $(CPU_OBJS)
 	$(CC) $(LDFLAGS) $^ -o $@
+
+cuda-target: $(OBJS) $(CUDA_OBJS)
+	$(CC) $(LDFLAGS) $(CUDA_LDFLAGS) $^ -o $(TARGET)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+%.o: %.cu
+	$(NVCC) $(CUDA_CFLAGS) -c $< -o $@
 
 %.s: %.c
 	$(CC) $(CFLAGS) -S $< -o $@
 
 clean:
-	rm -rf $(TARGET) $(OBJS) $(ASMS)
+	rm -rf $(TARGET) $(OBJS) $(CUDA_OBJS) $(CPU_OBJS) $(ASMS)

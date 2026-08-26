@@ -5,6 +5,7 @@
 #include "model.h"
 #include "gguf.h"
 #include "transformer.h"
+#include "backend.h"
 
 static int tensor_init(tensor_t *tensor, const gguf_file_t *file,
 		       const char *t_name)
@@ -13,7 +14,14 @@ static int tensor_init(tensor_t *tensor, const gguf_file_t *file,
 	tensor->n_dimensions		 = t_info->n_dimensions;
 	memcpy(tensor->dimensions, t_info->dimensions,
 	       sizeof(tensor->dimensions));
-	tensor->data = gguf_get_f32tensor(file->tensor_data, t_info);
+	const float *gguf_tensor = gguf_get_f32tensor(file->tensor_data,
+						      t_info);
+
+	size_t tensor_size	 = sizeof(float);
+	for (size_t i = 0; i < tensor->n_dimensions; ++i)
+		tensor_size *= tensor->dimensions[i];
+
+	backend_move_h2d((void **)&tensor->data, gguf_tensor, tensor_size);
 
 	return 0;
 }

@@ -13,9 +13,21 @@
     {
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
+          cudaPackages.cuda_nvcc
+          cudaPackages.cuda_cudart
+          cudaPackages.libcublas
+
           gdb
           valgrind
           kdePackages.kcachegrind
+
+          cudaPackages.nsight_systems
+          cudaPackages.nsight_compute
+          cudaPackages.cuda_gdb
+          cudaPackages.cuda_sanitizer_api
+          cudaPackages.cuda_nvtx
+          cudaPackages.cuda_cuobjdump
+          cudaPackages.cuda_nvdisasm
         ];
 
         shellHook = ''

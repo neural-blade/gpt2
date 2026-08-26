@@ -1,11 +1,11 @@
 #include <string.h>
-#include <stdlib.h>
 #include "backend.h"
 #include "transformer.h"
 #include "model.h"
 #include "perf.h"
 
 struct _transformer_ctx_t {
+	uint32_t *h_token_ids;
 	uint32_t *token_ids;
 	float *hidden;
 
@@ -27,48 +27,65 @@ struct _transformer_ctx_t {
 transformer_ctx_t *transformer_create(model_t *model, uint32_t *token_ids,
 				      uint64_t seq_len)
 {
-	transformer_ctx_t *ctx = malloc(sizeof(*ctx));
+	transformer_ctx_t *ctx;
+	backend_malloc_host((void **)&ctx, sizeof(*ctx));
+	memset(ctx, 0, sizeof(*ctx));
 
-	ctx->token_ids	       = malloc(model->n_ctx * sizeof(uint32_t));
-	ctx->hidden	= malloc(model->n_embd * seq_len * sizeof(float));
-
-	ctx->buf_narr	= malloc(model->n_ff * seq_len * sizeof(float));
-	ctx->buf_wide	= malloc(model->n_head * model->n_ctx * seq_len *
-				 sizeof(float));
-
-	ctx->logits	= malloc(model->vocab_count * sizeof(float));
-
-	ctx->k_cache	= malloc(model->block_count * model->n_ctx *
-				 model->n_embd * sizeof(float));
-	ctx->v_cache	= malloc(model->block_count * model->n_ctx *
-				 model->n_embd * sizeof(float));
-
-	ctx->steps	= malloc(model->n_ctx * sizeof(*ctx->steps));
+	backend_malloc_host((void **)&ctx->h_token_ids,
+			    model->n_ctx * sizeof(uint32_t));
+	backend_malloc_device((void **)&ctx->token_ids,
+			      model->n_ctx * sizeof(uint32_t));
+	backend_malloc_device((void **)&ctx->hidden,
+			      model->n_embd * seq_len * sizeof(float));
+	backend_malloc_device((void **)&ctx->buf_narr,
+			      model->n_ff * seq_len * sizeof(float));
+	backend_malloc_device((void **)&ctx->buf_wide,
+			      model->n_head * model->n_ctx * seq_len *
+				  sizeof(float));
+	backend_malloc_device((void **)&ctx->logits,
+			      model->vocab_count * sizeof(float));
+	backend_malloc_device((void **)&ctx->k_cache,
+			      model->block_count * model->n_ctx *
+				  model->n_embd * sizeof(float));
+	backend_malloc_device((void **)&ctx->v_cache,
+			      model->block_count * model->n_ctx *
+				  model->n_embd * sizeof(float));
+	backend_malloc_host((void **)&ctx->steps,
+			    model->n_ctx * sizeof(*ctx->steps));
 
 	ctx->step_count = 0;
 	ctx->cache_len	= 0;
 	ctx->seq_len	= seq_len;
-	for (uint32_t i = 0; i < seq_len; ++i) ctx->token_ids[i] = token_ids[i];
+	for (uint32_t i = 0; i < seq_len; ++i)
+		ctx->h_token_ids[i] = token_ids[i];
+
+	if (ctx->token_ids == NULL) ctx->token_ids = ctx->h_token_ids;
+
+	backend_h2d(ctx->token_ids, ctx->h_token_ids,
+		    seq_len * sizeof(uint32_t));
 
 	return ctx;
 }
 
 void transformer_destroy(transformer_ctx_t *ctx)
 {
-	free(ctx->steps);
-	free(ctx->token_ids);
-	free(ctx->hidden);
-	free(ctx->buf_narr);
-	free(ctx->buf_wide);
-	free(ctx->logits);
-	free(ctx->k_cache);
-	free(ctx->v_cache);
-	free(ctx);
+	backend_free_device(ctx->token_ids);
+	backend_free_device(ctx->hidden);
+	backend_free_device(ctx->buf_narr);
+	backend_free_device(ctx->buf_wide);
+	backend_free_device(ctx->logits);
+	backend_free_device(ctx->k_cache);
+	backend_free_device(ctx->v_cache);
+	backend_free_host(ctx->h_token_ids);
+	backend_free_host(ctx->steps);
+	backend_free_host(ctx);
 }
 
 uint32_t transformer_get_token(transformer_ctx_t *ctx, uint32_t idx)
 {
-	return ctx->token_ids[idx];
+	backend_d2h(&ctx->h_token_ids[idx], &ctx->token_ids[idx],
+		    sizeof(uint32_t));
+	return ctx->h_token_ids[idx];
 }
 
 static void kv_cache_append(const float *qkv, float *k, float *v,
@@ -80,10 +97,11 @@ static void kv_cache_append(const float *qkv, float *k, float *v,
 		uint32_t t_offset    = i * hidden_len;
 		uint64_t k_offset    = t_offset * 3 + hidden_len;
 
-		memcpy(k + last_offset + t_offset, &qkv[k_offset],
-		       hidden_len * sizeof(*k));
-		memcpy(v + last_offset + t_offset, &qkv[k_offset + hidden_len],
-		       hidden_len * sizeof(*v));
+		backend_d2d(k + last_offset + t_offset, &qkv[k_offset],
+			    hidden_len * sizeof(*k));
+		backend_d2d(v + last_offset + t_offset,
+			    &qkv[k_offset + hidden_len],
+			    hidden_len * sizeof(*v));
 	}
 }
 
@@ -177,11 +195,11 @@ void transformer_forward(transformer_ctx_t *ctx, model_t *model)
 		 model->vocab_count, model->n_embd);
 
 	ctx->cache_len += ctx->seq_len;
-	ctx->seq_len		       = 1;
+	ctx->seq_len = 1;
 
 	// Greedy decoding
-	ctx->token_ids[ctx->cache_len] = argmax_f32v(ctx->logits,
-						     model->vocab_count);
+	argmax_f32v(ctx->logits, model->vocab_count,
+		    &ctx->token_ids[ctx->cache_len]);
 
-	ctx->steps[ctx->step_count++]  = perf_now_ns() - time_start;
+	ctx->steps[ctx->step_count++] = perf_now_ns() - time_start;
 }

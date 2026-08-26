@@ -1,6 +1,62 @@
 #include <stdint.h>
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#define MALLOC_CHK(ptr, size)                                                  \
+	do {                                                                   \
+		ptr = malloc(size);                                            \
+		if ((ptr) == NULL) {                                           \
+			fprintf(stderr, "MallocError at %s:%d in %s()\n",      \
+				__FILE__, __LINE__, __func__);                 \
+			exit(1);                                               \
+		}                                                              \
+	} while (0);
+
+void backend_malloc_host(void **ptr, size_t size)
+{
+	MALLOC_CHK(*ptr, size)
+}
+
+void backend_malloc_device(void **ptr, size_t size)
+{
+	if (*ptr != NULL) return;
+	MALLOC_CHK(*ptr, size);
+}
+
+void backend_h2d(void *dst, const void *src, size_t count)
+{
+	if (dst == src) return;
+	memcpy(dst, src, count);
+}
+
+void backend_d2h(void *dst, void *src, size_t count)
+{
+	if (dst == src) return;
+	memcpy(dst, src, count);
+}
+
+void backend_d2d(void *dst, const void *src, size_t count)
+{
+	memcpy(dst, src, count);
+}
+
+void backend_free_host(void *ptr)
+{
+	free(ptr);
+}
+
+void backend_free_device(void *ptr)
+{
+	free(ptr);
+}
+
+void backend_move_h2d(void **dst, const void *src, size_t count)
+{
+	*dst = (void *)src;
+	(void)count;
+}
 
 void add_f32v(float *restrict a, const float *restrict b, float alpha,
 	      uint64_t len)
@@ -8,18 +64,19 @@ void add_f32v(float *restrict a, const float *restrict b, float alpha,
 	for (uint64_t i = 0; i < len; ++i) a[i] += alpha * b[i];
 }
 
-float sum_f32v(const float *restrict a, uint64_t len)
+void sum_f32v(const float *restrict a, uint64_t len, float *out)
 {
 	float sum = 0.0f;
 	for (uint64_t i = 0; i < len; ++i) sum += a[i];
-	return sum;
+	*out = sum;
 }
 
-float dot_f32v(const float *restrict a, const float *restrict b, uint64_t len)
+void dot_f32v(const float *restrict a, const float *restrict b, uint64_t len,
+	      float *out)
 {
 	float sum = 0.0f;
 	for (uint64_t i = 0; i < len; ++i) sum += a[i] * b[i];
-	return sum;
+	*out = sum;
 }
 
 void gemm_f32(const float *restrict a, const float *restrict b,
@@ -27,9 +84,10 @@ void gemm_f32(const float *restrict a, const float *restrict b,
 	      uint64_t k)
 {
 	for (uint64_t i = 0; i < m; ++i)
-		for (uint64_t j = 0; j < n; ++j)
-			c[i * n + j] = dot_f32v(&a[i * k], &b[j * k], k) *
-				       alpha;
+		for (uint64_t j = 0; j < n; ++j) {
+			dot_f32v(&a[i * k], &b[j * k], k, &c[i * n + j]);
+			c[i * n + j] *= alpha;
+		}
 }
 
 void token_embd(const uint32_t *token_ids, const float *restrict token_embd_w,
@@ -58,10 +116,11 @@ void layer_norm(const float *restrict in, const float *restrict weight,
 
 	for (uint32_t i = 0; i < seq_len; ++i) {
 		uint32_t t_offset = i * hidden_dim;
-		float sum	  = sum_f32v(&in[t_offset], hidden_dim);
-		float mean	  = sum * inv_hidden_dim;
+		float sum;
+		sum_f32v(&in[t_offset], hidden_dim, &sum);
+		float mean   = sum * inv_hidden_dim;
 
-		float sum_sq	  = 0.0f;
+		float sum_sq = 0.0f;
 		for (uint32_t j = 0; j < hidden_dim; ++j)
 			sum_sq += (in[t_offset + j] - mean) *
 				  (in[t_offset + j] - mean);
@@ -99,12 +158,12 @@ void attn_scores(const float *restrict q, const float *restrict k,
 		for (uint64_t j = 0; j < heads_count; ++j) {
 			uint64_t head_base = row_base + n_keys * j;
 
-			for (uint64_t t = 0; t < n_keys; ++t)
-				scores[head_base + t] =
-				    dot_f32v(&q[i * q_stride + j * head_len],
-					     &k[t * k_stride + j * head_len],
-					     head_len) *
-				    inv_sqrt;
+			for (uint64_t t = 0; t < n_keys; ++t) {
+				dot_f32v(&q[i * q_stride + j * head_len],
+					 &k[t * k_stride + j * head_len],
+					 head_len, &scores[head_base + t]);
+				scores[head_base + t] *= inv_sqrt;
+			}
 		}
 
 		row_base += n_keys * heads_count;
@@ -112,7 +171,7 @@ void attn_scores(const float *restrict q, const float *restrict k,
 	}
 }
 
-uint32_t argmax_f32v(const float *restrict v, uint64_t len)
+void argmax_f32v(const float *restrict v, uint64_t len, uint32_t *out)
 {
 	float max   = v[0];
 	uint32_t id = 0;
@@ -121,7 +180,7 @@ uint32_t argmax_f32v(const float *restrict v, uint64_t len)
 			max = v[i];
 			id  = i;
 		}
-	return id;
+	*out = id;
 }
 
 void softmax(float *restrict scores, uint64_t n_head, uint64_t initial_token,
@@ -135,8 +194,10 @@ void softmax(float *restrict scores, uint64_t n_head, uint64_t initial_token,
 			uint64_t head_base  = j * n_keys;
 			float *restrict row = &scores[row_base + head_base];
 
-			float max_val	    = row[argmax_f32v(row, n_keys)];
-			float sum	    = 0.0f;
+			uint32_t id;
+			argmax_f32v(row, n_keys, &id);
+			float max_val = row[id];
+			float sum     = 0.0f;
 			for (uint64_t k = 0; k < n_keys; ++k) {
 				row[k] = expf(row[k] - max_val);
 				sum += row[k];
