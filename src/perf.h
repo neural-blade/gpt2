@@ -5,8 +5,8 @@
 #include <stdint.h>
 
 typedef struct _transformer_perf_t {
-	uint64_t prefill_ns;
-	uint64_t decode_ns;
+	float prefill_ms;
+	float decode_ms;
 	uint32_t prefill_tokens;
 	uint32_t decode_tokens;
 } transformer_perf_t;

@@ -20,7 +20,7 @@ struct _transformer_ctx_t {
 
 	uint64_t seq_len;
 
-	uint64_t *steps;
+	float *steps;
 	uint32_t step_count;
 };
 
@@ -28,6 +28,7 @@ transformer_ctx_t *transformer_create(model_t *model, uint32_t *token_ids,
 				      uint64_t seq_len)
 {
 	transformer_ctx_t *ctx;
+	backend_init();
 	backend_malloc_host((void **)&ctx, sizeof(*ctx));
 	memset(ctx, 0, sizeof(*ctx));
 
@@ -79,12 +80,11 @@ void transformer_destroy(transformer_ctx_t *ctx)
 	backend_free_host(ctx->h_token_ids);
 	backend_free_host(ctx->steps);
 	backend_free_host(ctx);
+	backend_destroy();
 }
 
 uint32_t transformer_get_token(transformer_ctx_t *ctx, uint32_t idx)
 {
-	backend_d2h(&ctx->h_token_ids[idx], &ctx->token_ids[idx],
-		    sizeof(uint32_t));
 	return ctx->h_token_ids[idx];
 }
 
@@ -108,18 +108,18 @@ static void kv_cache_append(const float *qkv, float *k, float *v,
 void transformer_get_perf(transformer_ctx_t *ctx, transformer_perf_t *stats)
 {
 	stats->prefill_tokens = ctx->cache_len - ctx->step_count + 1;
-	stats->prefill_ns     = ctx->steps[0];
+	stats->prefill_ms     = ctx->steps[0];
 	stats->decode_tokens  = ctx->step_count;
 
 	uint64_t decode_ns    = 0;
 	for (uint32_t i = 1; i < ctx->step_count; ++i)
 		decode_ns += ctx->steps[i];
-	stats->decode_ns = decode_ns;
+	stats->decode_ms = decode_ns;
 }
 
 void transformer_forward(transformer_ctx_t *ctx, model_t *model)
 {
-	uint64_t time_start = perf_now_ns();
+	backend_time_start();
 	// Embedding
 	token_embd(&ctx->token_ids[ctx->cache_len], model->token_embd_w.data,
 		   ctx->hidden, ctx->seq_len, model->n_embd);
@@ -201,5 +201,10 @@ void transformer_forward(transformer_ctx_t *ctx, model_t *model)
 	argmax_f32v(ctx->logits, model->vocab_count,
 		    &ctx->token_ids[ctx->cache_len]);
 
-	ctx->steps[ctx->step_count++] = perf_now_ns() - time_start;
+	backend_time_stop();
+
+	backend_time_elaps(&ctx->steps[ctx->step_count++]);
+
+	backend_d2h(&ctx->h_token_ids[ctx->cache_len],
+		    &ctx->token_ids[ctx->cache_len], sizeof(uint32_t));
 }

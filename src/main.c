@@ -21,10 +21,10 @@ void show_stats(transformer_perf_t *stats)
 	printf("\n=============== STATS ===============\n");
 	printf("prefill: %u tok in %.1lf ms (%.1lf tok/s)\n"
 	       "decode : %u tok in %.1lf ms (%.1lf tok/s)\n",
-	       stats->prefill_tokens, stats->prefill_ns * 1.0e-6,
-	       stats->prefill_tokens / (stats->prefill_ns * 1.0e-9),
-	       stats->decode_tokens, stats->decode_ns * 1.0e-6,
-	       stats->decode_tokens / (stats->decode_ns * 1.0e-9));
+	       stats->prefill_tokens, stats->prefill_ms,
+	       stats->prefill_tokens / (stats->prefill_ms * 1.0e-3),
+	       stats->decode_tokens, stats->decode_ms,
+	       stats->decode_tokens / (stats->decode_ms * 1.0e-3));
 }
 
 int main(int argc, char **argv)

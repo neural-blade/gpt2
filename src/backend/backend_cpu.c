@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "../perf.h"
 
 #define MALLOC_CHK(ptr, size)                                                  \
 	do {                                                                   \
@@ -13,6 +14,16 @@
 			exit(1);                                               \
 		}                                                              \
 	} while (0);
+
+static uint64_t time_start, time_stop;
+
+void backend_init(void)
+{
+}
+
+void backend_destroy(void)
+{
+}
 
 void backend_malloc_host(void **ptr, size_t size)
 {
@@ -56,6 +67,21 @@ void backend_move_h2d(void **dst, const void *src, size_t count)
 {
 	*dst = (void *)src;
 	(void)count;
+}
+
+void backend_time_start(void)
+{
+	time_start = perf_now_ns();
+}
+
+void backend_time_stop(void)
+{
+	time_stop = perf_now_ns();
+}
+
+void backend_time_elaps(float *ms)
+{
+	*ms = (time_stop - time_start) * 1.0e-6f;
 }
 
 void add_f32v(float *restrict a, const float *restrict b, float alpha,

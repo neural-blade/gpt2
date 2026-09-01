@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+void backend_init(void);
+void backend_destroy(void);
 void backend_malloc_host(void **ptr, size_t size);
 void backend_malloc_device(void **ptr, size_t size);
 void backend_h2d(void *dst, const void *src, size_t count);
@@ -12,6 +14,9 @@ void backend_d2d(void *dst, const void *src, size_t count);
 void backend_free_host(void *ptr);
 void backend_free_device(void *ptr);
 void backend_move_h2d(void **dst, const void *src, size_t count);
+void backend_time_start(void);
+void backend_time_stop(void);
+void backend_time_elaps(float *ms);
 
 void add_f32v(float *a, const float *b, float alpha, uint64_t len);
 void sum_f32v(const float *a, uint64_t len);
