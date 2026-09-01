@@ -122,10 +122,13 @@ typedef struct _gguf_file_t {
 } gguf_file_t;
 
 int gguf_load(const char *filename, gguf_file_t *file);
+void gguf_free(gguf_file_t *file);
+
 int gguf_get_value(const gguf_file_t *file, const char *key,
 		   gguf_metadata_value_t *value);
+
 void gguf_show(const gguf_file_t *file);
-void gguf_free(gguf_file_t *file);
+
 const gguf_tensor_info_t *gguf_find_tensor_info(const gguf_file_t *file,
 						const char *t_name);
 

@@ -5,7 +5,7 @@ BreakBeforeBraces: Linux
 ColumnLimit: 80
 AllowShortIfStatementsOnASingleLine: true
 AllowShortLoopsOnASingleLine: true
-AllowShortFunctionsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: true
 AllowShortEnumsOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: true
 AlignOperands: true

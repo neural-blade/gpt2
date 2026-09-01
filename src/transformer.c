@@ -1,6 +1,6 @@
+#include "transformer.h"
 #include <string.h>
 #include "backend.h"
-#include "transformer.h"
 #include "model.h"
 #include "perf.h"
 
@@ -120,9 +120,11 @@ void transformer_get_perf(transformer_ctx_t *ctx, transformer_perf_t *stats)
 void transformer_forward(transformer_ctx_t *ctx, model_t *model)
 {
 	backend_time_start();
+
 	// Embedding
 	token_embd(&ctx->token_ids[ctx->cache_len], model->token_embd_w.data,
 		   ctx->hidden, ctx->seq_len, model->n_embd);
+
 	pos_embd(ctx->hidden, model->pos_embd_w.data, ctx->seq_len,
 		 ctx->cache_len, model->n_embd);
 
@@ -161,8 +163,7 @@ void transformer_forward(transformer_ctx_t *ctx, model_t *model)
 		     block->attn_output_w.dimensions[0],
 		     block->attn_output_w.dimensions[1]);
 
-		add_f32v(ctx->hidden, ctx->buf_wide, 1.0f,
-			 ctx->seq_len * model->n_embd);
+		resid(ctx->hidden, ctx->buf_wide, ctx->seq_len * model->n_embd);
 
 		// FFN
 		layer_norm(ctx->hidden, block->ffn_norm_w.data,
@@ -180,8 +181,7 @@ void transformer_forward(transformer_ctx_t *ctx, model_t *model)
 		     block->ffn_down_w.dimensions[0],
 		     block->ffn_down_w.dimensions[1]);
 
-		add_f32v(ctx->hidden, ctx->buf_wide, 1.0f,
-			 ctx->seq_len * model->n_embd);
+		resid(ctx->hidden, ctx->buf_wide, ctx->seq_len * model->n_embd);
 	}
 
 	// Final layer norm
@@ -190,19 +190,18 @@ void transformer_forward(transformer_ctx_t *ctx, model_t *model)
 		   model->n_embd, model->epsilon);
 
 	// Output projection
-	gemm_f32(&ctx->buf_narr[(ctx->seq_len - 1) * model->n_embd],
-		 model->token_embd_w.data, ctx->logits, 1.0f, 1,
-		 model->vocab_count, model->n_embd);
+	out_proj(&ctx->buf_narr[(ctx->seq_len - 1) * model->n_embd],
+		 model->token_embd_w.data, ctx->logits, model->vocab_count,
+		 model->n_embd);
 
 	ctx->cache_len += ctx->seq_len;
 	ctx->seq_len = 1;
 
 	// Greedy decoding
-	argmax_f32v(ctx->logits, model->vocab_count,
-		    &ctx->token_ids[ctx->cache_len]);
+	greedy_decode(ctx->logits, model->vocab_count,
+		      &ctx->token_ids[ctx->cache_len]);
 
 	backend_time_stop();
-
 	backend_time_elaps(&ctx->steps[ctx->step_count++]);
 
 	backend_d2h(&ctx->h_token_ids[ctx->cache_len],

@@ -17,6 +17,7 @@
           cudaPackages.cuda_cudart
           cudaPackages.libcublas
 
+          clang-tools
           gdb
           valgrind
           kdePackages.kcachegrind

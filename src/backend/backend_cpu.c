@@ -1,3 +1,4 @@
+#include "../backend.h"
 #include <stdint.h>
 #include <math.h>
 #include <string.h>
@@ -5,35 +6,16 @@
 #include <stdio.h>
 #include "../perf.h"
 
-#define MALLOC_CHK(ptr, size)                                                  \
-	do {                                                                   \
-		ptr = malloc(size);                                            \
-		if ((ptr) == NULL) {                                           \
-			fprintf(stderr, "MallocError at %s:%d in %s()\n",      \
-				__FILE__, __LINE__, __func__);                 \
-			exit(1);                                               \
-		}                                                              \
-	} while (0);
-
 static uint64_t time_start, time_stop;
 
-void backend_init(void)
-{
-}
-
-void backend_destroy(void)
-{
-}
-
-void backend_malloc_host(void **ptr, size_t size)
-{
-	MALLOC_CHK(*ptr, size)
-}
+void backend_init(void) {}
+void backend_destroy(void) {}
+void backend_malloc_host(void **ptr, size_t size) { *ptr = malloc(size); }
 
 void backend_malloc_device(void **ptr, size_t size)
 {
 	if (*ptr != NULL) return;
-	MALLOC_CHK(*ptr, size);
+	*ptr = malloc(size);
 }
 
 void backend_h2d(void *dst, const void *src, size_t count)
@@ -42,7 +24,7 @@ void backend_h2d(void *dst, const void *src, size_t count)
 	memcpy(dst, src, count);
 }
 
-void backend_d2h(void *dst, void *src, size_t count)
+void backend_d2h(void *dst, const void *src, size_t count)
 {
 	if (dst == src) return;
 	memcpy(dst, src, count);
@@ -53,15 +35,8 @@ void backend_d2d(void *dst, const void *src, size_t count)
 	memcpy(dst, src, count);
 }
 
-void backend_free_host(void *ptr)
-{
-	free(ptr);
-}
-
-void backend_free_device(void *ptr)
-{
-	free(ptr);
-}
+void backend_free_host(void *ptr) { free(ptr); }
+void backend_free_device(void *ptr) { free(ptr); }
 
 void backend_move_h2d(void **dst, const void *src, size_t count)
 {
@@ -69,45 +44,47 @@ void backend_move_h2d(void **dst, const void *src, size_t count)
 	(void)count;
 }
 
-void backend_time_start(void)
-{
-	time_start = perf_now_ns();
-}
+void backend_time_start(void) { time_start = perf_now_ns(); }
+void backend_time_stop(void) { time_stop = perf_now_ns(); }
+void backend_time_elaps(float *ms) { *ms = (time_stop - time_start) * 1.0e-6f; }
 
-void backend_time_stop(void)
-{
-	time_stop = perf_now_ns();
-}
-
-void backend_time_elaps(float *ms)
-{
-	*ms = (time_stop - time_start) * 1.0e-6f;
-}
-
-void add_f32v(float *restrict a, const float *restrict b, float alpha,
-	      uint64_t len)
+static inline void add_f32v(float *restrict a, const float *restrict b,
+			    float alpha, uint64_t len)
 {
 	for (uint64_t i = 0; i < len; ++i) a[i] += alpha * b[i];
 }
 
-void sum_f32v(const float *restrict a, uint64_t len, float *out)
+static inline void sum_f32v(const float *restrict a, uint64_t len, float *out)
 {
 	float sum = 0.0f;
 	for (uint64_t i = 0; i < len; ++i) sum += a[i];
 	*out = sum;
 }
 
-void dot_f32v(const float *restrict a, const float *restrict b, uint64_t len,
-	      float *out)
+static inline void dot_f32v(const float *restrict a, const float *restrict b,
+			    uint64_t len, float *out)
 {
 	float sum = 0.0f;
 	for (uint64_t i = 0; i < len; ++i) sum += a[i] * b[i];
 	*out = sum;
 }
 
-void gemm_f32(const float *restrict a, const float *restrict b,
-	      float *restrict c, float alpha, uint64_t m, uint64_t n,
-	      uint64_t k)
+static inline void argmax_f32v(const float *restrict v, uint64_t len,
+			       uint32_t *restrict out)
+{
+	float max   = v[0];
+	uint32_t id = 0;
+	for (uint32_t i = 1; i < len; ++i)
+		if (v[i] > max) {
+			max = v[i];
+			id  = i;
+		}
+	*out = id;
+}
+
+static void gemm_f32(const float *restrict a, const float *restrict b,
+		     float *restrict c, float alpha, uint64_t m, uint64_t n,
+		     uint64_t k)
 {
 	for (uint64_t i = 0; i < m; ++i)
 		for (uint64_t j = 0; j < n; ++j) {
@@ -197,18 +174,6 @@ void attn_scores(const float *restrict q, const float *restrict k,
 	}
 }
 
-void argmax_f32v(const float *restrict v, uint64_t len, uint32_t *out)
-{
-	float max   = v[0];
-	uint32_t id = 0;
-	for (uint32_t i = 1; i < len; ++i)
-		if (v[i] > max) {
-			max = v[i];
-			id  = i;
-		}
-	*out = id;
-}
-
 void softmax(float *restrict scores, uint64_t n_head, uint64_t initial_token,
 	     uint64_t n_token)
 {
@@ -265,10 +230,27 @@ void attn_v_weighted_sum(const float *restrict p, const float *restrict v,
 	}
 }
 
+void resid(float *restrict a, const float *restrict b, uint64_t len)
+{
+	add_f32v(a, b, 1.0f, len);
+}
+
 void gelu_actv(float *restrict x, uint64_t len)
 {
 	for (uint64_t i = 0; i < len; ++i)
 		x[i] = 0.5 * x[i] *
 		       (1 + tanhf(0.7978845608f * x[i] +
 				  0.0356774081f * x[i] * x[i] * x[i]));
+}
+
+void out_proj(const float *restrict in, const float *restrict weight,
+	      float *restrict out, uint32_t hidden_dim, uint32_t out_dim)
+{
+	gemm_f32(in, weight, out, 1.0f, 1, hidden_dim, out_dim);
+}
+
+void greedy_decode(const float *restrict v, uint64_t len,
+		   uint32_t *restrict out)
+{
+	argmax_f32v(v, len, out);
 }

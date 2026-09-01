@@ -1,10 +1,10 @@
+#include "gguf.h"
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "gguf.h"
 
 static uint8_t read_u8(int fd)
 {
