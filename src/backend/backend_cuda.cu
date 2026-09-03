@@ -102,7 +102,7 @@ static inline void gemm_f32(const float *__restrict__ a,
 static inline void argmax_f32v(const float *__restrict__ v, uint64_t len,
 			       uint32_t *__restrict__ out)
 {
-	argmax_f32v_kernel<<<1, 1>>>(v, len, out);
+	argmax_f32v_kernel<<<1, THREADS_PER_BLOCK>>>(v, len, out);
 	CHECK(cudaGetLastError());
 }
 

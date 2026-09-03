@@ -129,12 +129,6 @@ __global__ void attn_scores_kernel(const float *__restrict__ q,
 	}
 }
 
-__global__ void argmax_f32v_kernel(const float *v, uint64_t len, uint32_t *out)
-{
-	if (threadIdx.x == 0 && blockIdx.x == 0)
-		argmax_f32v_device(v, len, out);
-}
-
 __global__ void softmax_kernel(float *__restrict__ scores, uint64_t n_head,
 			       uint64_t initial_token, uint64_t n_token)
 {
@@ -201,4 +195,34 @@ __global__ void gelu_actv_kernel(float *__restrict__ x, uint64_t len)
 		x[i] = 0.5 * x[i] *
 		       (1 + tanhf(0.7978845608f * x[i] +
 				  0.0356774081f * x[i] * x[i] * x[i]));
+}
+
+#define STRIDE 256
+
+__global__ void argmax_f32v_kernel(const float *v, uint64_t len, uint32_t *out)
+{
+	uint64_t i = THREAD_IDX(x);
+
+	__shared__ uint32_t max_ids[STRIDE];
+
+	uint64_t start_idx = i * STRIDE;
+	if (start_idx < len) {
+		max_ids[i] = start_idx;
+
+		for (uint64_t j = start_idx + 1;
+		     j < start_idx + STRIDE && j < len; ++j)
+			if (v[j] > v[max_ids[i]]) max_ids[i] = j;
+	} else
+		max_ids[i] = 0;
+
+	__syncthreads();
+
+	if (i == 0) {
+		uint32_t max_id = max_ids[0];
+
+		for (uint32_t j = 1; j < STRIDE; ++j)
+			if (v[max_ids[j]] > v[max_id]) max_id = max_ids[j];
+
+		*out = max_id;
+	}
 }
