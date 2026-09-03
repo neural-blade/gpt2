@@ -180,7 +180,7 @@ void model_run(model_t *model, uint32_t *token_ids, uint32_t token_count,
 	for (uint32_t i = 0; i < max_tokens; ++i) {
 		uint32_t total_token = token_count + i;
 		uint32_t next_token_id;
-		if (total_token >= model->n_ctx) break;
+		if (total_token > model->n_ctx) break;
 		transformer_forward(ctx, model);
 		next_token_id = transformer_get_token(ctx, total_token);
 		print_token(model->vocab[next_token_id]);

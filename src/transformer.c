@@ -33,9 +33,9 @@ transformer_ctx_t *transformer_create(model_t *model, uint32_t *token_ids,
 	memset(ctx, 0, sizeof(*ctx));
 
 	backend_malloc_host((void **)&ctx->h_token_ids,
-			    model->n_ctx * sizeof(uint32_t));
+			    (model->n_ctx + 1) * sizeof(uint32_t));
 	backend_malloc_device((void **)&ctx->token_ids,
-			      model->n_ctx * sizeof(uint32_t));
+			      (model->n_ctx + 1) * sizeof(uint32_t));
 	backend_malloc_device((void **)&ctx->hidden,
 			      model->n_embd * seq_len * sizeof(float));
 	backend_malloc_device((void **)&ctx->buf_narr,
@@ -109,7 +109,7 @@ void transformer_get_perf(transformer_ctx_t *ctx, transformer_perf_t *stats)
 {
 	stats->prefill_tokens = ctx->cache_len - ctx->step_count + 1;
 	stats->prefill_ms     = ctx->steps[0];
-	stats->decode_tokens  = ctx->step_count;
+	stats->decode_tokens  = ctx->step_count - 1;
 
 	uint64_t decode_ns    = 0;
 	for (uint32_t i = 1; i < ctx->step_count; ++i)
