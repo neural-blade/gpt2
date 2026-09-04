@@ -197,20 +197,19 @@ __global__ void gelu_actv_kernel(float *__restrict__ x, uint64_t len)
 				  0.0356774081f * x[i] * x[i] * x[i]));
 }
 
-#define STRIDE 256
-
 __global__ void argmax_f32v_kernel(const float *v, uint64_t len, uint32_t *out)
 {
-	uint64_t i = THREAD_IDX(x);
+	uint64_t i	= THREAD_IDX(x);
+	uint64_t stride = CEIL_DIV(len, THREADS_PER_BLOCK);
 
-	__shared__ uint32_t max_ids[STRIDE];
+	__shared__ uint32_t max_ids[THREADS_PER_BLOCK];
 
-	uint64_t start_idx = i * STRIDE;
+	uint64_t start_idx = i * stride;
 	if (start_idx < len) {
 		max_ids[i] = start_idx;
 
 		for (uint64_t j = start_idx + 1;
-		     j < start_idx + STRIDE && j < len; ++j)
+		     j < start_idx + stride && j < len; ++j)
 			if (v[j] > v[max_ids[i]]) max_ids[i] = j;
 	} else
 		max_ids[i] = 0;
@@ -220,7 +219,7 @@ __global__ void argmax_f32v_kernel(const float *v, uint64_t len, uint32_t *out)
 	if (i == 0) {
 		uint32_t max_id = max_ids[0];
 
-		for (uint32_t j = 1; j < STRIDE; ++j)
+		for (uint32_t j = 1; j < THREADS_PER_BLOCK; ++j)
 			if (v[max_ids[j]] > v[max_id]) max_id = max_ids[j];
 
 		*out = max_id;

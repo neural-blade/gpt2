@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#define THREADS_PER_BLOCK 256
+#define CEIL_DIV(a, b) (((a) + (b) - 1) / (b))
+
 __global__ void add_f32v_kernel(float *__restrict__ a,
 				const float *__restrict__ b, float alpha,
 				uint64_t len);

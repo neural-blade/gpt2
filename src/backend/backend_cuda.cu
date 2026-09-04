@@ -6,8 +6,6 @@
 #include <stdio.h>
 #include "kernels_cuda.cuh"
 
-#define THREADS_PER_BLOCK 256
-
 #define CHECK(err)                                                             \
 	do {                                                                   \
 		cudaError_t _err = (err);                                      \
@@ -19,8 +17,6 @@
 			exit(1);                                               \
 		}                                                              \
 	} while (0);
-
-#define CEIL_DIV(a, b) (((a) + (b) - 1) / (b))
 
 static cudaEvent_t time_start, time_stop;
 
