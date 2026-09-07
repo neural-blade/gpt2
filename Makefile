@@ -12,6 +12,7 @@ ASMS := $(SRCS:%.c=%.s)
 
 CPU_SRCS := $(wildcard src/backend/*.c)
 CPU_OBJS := $(CPU_SRCS:%.c=%.o)
+CPU_ASMS := $(CPU_SRCS:%.c=%.s)
 
 CUDA_SRCS := $(wildcard src/backend/*.cu)
 CUDA_OBJS := $(CUDA_SRCS:%.cu=%.o)
@@ -43,7 +44,7 @@ san: LDFLAGS = $(CPU_LDFLAGS) $(SAN_FLAGS)
 san: $(TARGET)
 
 asm: CFLAGS = $(BASE_CFLAGS) $(NATIVE_CFLAGS) $(OPT_CFLAGS) $(ASM_FLAGS)
-asm: $(ASMS)
+asm: $(ASMS) $(CPU_ASMS)
 
 vgrind: CFLAGS = $(BASE_CFLAGS) -g $(NATIVE_CFLAGS) $(OPT_CFLAGS)
 vgrind: LDFLAGS = $(CPU_LDFLAGS) $(CPU_OPT_LDFLAGS)
