@@ -37,10 +37,10 @@ static __device__ inline void argmax_f32v_device(const float *__restrict__ v,
 
 __global__ void add_f32v_kernel(float *__restrict__ a,
 				const float *__restrict__ b, float alpha,
-				uint64_t len)
+				int len, int b_dim)
 {
-	uint64_t idx = THREAD_IDX(x);
-	if (idx < len) a[idx] += alpha * b[idx];
+	int idx = THREAD_IDX(x);
+	if (idx < len) a[idx] += alpha * b[idx % b_dim];
 }
 
 #define TILE_SIZE 16

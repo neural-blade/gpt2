@@ -8,7 +8,7 @@
 
 __global__ void add_f32v_kernel(float *__restrict__ a,
 				const float *__restrict__ b, float alpha,
-				uint64_t len);
+				int len, int b_dim);
 
 __global__ void gemm_f32_kernel(const float *__restrict__ a,
 				const float *__restrict__ b,

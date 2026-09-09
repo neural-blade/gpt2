@@ -78,10 +78,11 @@ void backend_time_elaps(float *ms)
 }
 
 static inline void add_f32v(float *__restrict__ a, const float *__restrict__ b,
-			    float alpha, uint64_t len)
+			    float alpha, uint64_t len, uint64_t b_dim)
 {
-	dim3 grid_dim(CEIL_DIV(len, THREADS_PER_BLOCK));
-	add_f32v_kernel<<<grid_dim, THREADS_PER_BLOCK>>>(a, b, alpha, len);
+	dim3 block_dim = 64;
+	dim3 grid_dim(CEIL_DIV(len, block_dim.x));
+	add_f32v_kernel<<<grid_dim, block_dim>>>(a, b, alpha, len, b_dim);
 	CHECK(cudaGetLastError());
 }
 
@@ -124,10 +125,8 @@ void token_embd(const uint32_t *token_ids,
 void pos_embd(float *__restrict__ embd, const float *__restrict__ pos_embd_w,
 	      uint32_t token_count, uint32_t initial_token, uint32_t hidden_dim)
 {
-	for (uint32_t i = 0; i < token_count; ++i)
-		add_f32v(&embd[i * hidden_dim],
-			 &pos_embd_w[(initial_token + i) * hidden_dim], 1.0f,
-			 hidden_dim);
+	add_f32v(embd, &pos_embd_w[initial_token * hidden_dim], 1.0f,
+		 token_count * hidden_dim, token_count * hidden_dim);
 }
 
 void layer_norm(const float *__restrict__ in, const float *__restrict__ weight,
@@ -145,8 +144,7 @@ void proj(const float *__restrict__ in, const float *__restrict__ weight,
 	  uint32_t seq_len, uint32_t hidden_dim, uint32_t out_dim)
 {
 	gemm_f32(in, weight, out, 1.0f, seq_len, out_dim, hidden_dim);
-	for (uint64_t i = 0; i < seq_len; ++i)
-		add_f32v(&out[i * out_dim], bias, 1.0f, out_dim);
+	add_f32v(out, bias, 1.0f, out_dim * seq_len, out_dim);
 }
 
 void attn_scores(const float *__restrict__ q, const float *__restrict__ k,
@@ -192,7 +190,7 @@ void attn_v_weighted_sum(const float *__restrict__ p,
 
 void resid(float *__restrict__ a, const float *__restrict__ b, uint64_t len)
 {
-	add_f32v(a, b, 1.0f, len);
+	add_f32v(a, b, 1.0f, len, len);
 }
 
 void gelu_actv(float *__restrict__ x, uint64_t len)
