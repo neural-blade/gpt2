@@ -12,8 +12,13 @@ __global__ void add_f32v_kernel(float *__restrict__ a,
 
 __global__ void gemm_f32_kernel(const float *__restrict__ a,
 				const float *__restrict__ b,
-				float *__restrict__ c, float alpha, uint64_t m,
-				uint64_t n, uint64_t k);
+				float *__restrict__ c, float alpha, int m,
+				int n, int k);
+
+__global__ void gemv_f32_kernel(const float *__restrict__ a,
+				const float *__restrict__ b,
+				float *__restrict__ c, float alpha, int n,
+				int k);
 
 __global__ void token_embd_kernel(const uint32_t *token_ids,
 				  const float *__restrict__ token_embd_w,

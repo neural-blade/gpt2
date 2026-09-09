@@ -89,9 +89,17 @@ static inline void gemm_f32(const float *__restrict__ a,
 			    const float *__restrict__ b, float *__restrict__ c,
 			    float alpha, uint64_t m, uint64_t n, uint64_t k)
 {
-	dim3 block_dim(32, 8);
-	dim3 grid_dim(CEIL_DIV(n, block_dim.x), CEIL_DIV(m, block_dim.y));
-	gemm_f32_kernel<<<grid_dim, block_dim>>>(a, b, c, alpha, m, n, k);
+	if (m == 1) {
+		dim3 block_dim(32, 16);
+		dim3 grid_dim(CEIL_DIV(n, block_dim.y));
+		gemv_f32_kernel<<<grid_dim, block_dim>>>(a, b, c, alpha, n, k);
+	} else {
+		dim3 block_dim(16, 16);
+		dim3 grid_dim(CEIL_DIV(n, block_dim.x),
+			      CEIL_DIV(m, block_dim.y));
+		gemm_f32_kernel<<<grid_dim, block_dim>>>(a, b, c, alpha, m, n,
+							 k);
+	}
 	CHECK(cudaGetLastError());
 }
 
