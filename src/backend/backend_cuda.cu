@@ -133,9 +133,10 @@ void layer_norm(const float *__restrict__ in, const float *__restrict__ weight,
 		const float *__restrict__ bias, float *__restrict__ out,
 		uint32_t seq_len, uint32_t hidden_dim, float eps)
 {
-	dim3 grid_dim(CEIL_DIV(seq_len, THREADS_PER_BLOCK));
-	layer_norm_kernel<<<grid_dim, THREADS_PER_BLOCK>>>(
-	    in, weight, bias, out, seq_len, hidden_dim, eps);
+	dim3 block_dim(32, 2);
+	dim3 grid_dim(1, CEIL_DIV(seq_len, block_dim.y));
+	layer_norm_kernel<<<grid_dim, block_dim>>>(in, weight, bias, out,
+						   seq_len, hidden_dim, eps);
 	CHECK(cudaGetLastError());
 }
 

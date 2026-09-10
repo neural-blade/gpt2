@@ -28,8 +28,8 @@ __global__ void token_embd_kernel(const uint32_t *token_ids,
 __global__ void layer_norm_kernel(const float *__restrict__ in,
 				  const float *__restrict__ weight,
 				  const float *__restrict__ bias,
-				  float *__restrict__ out, uint32_t seq_len,
-				  uint32_t hidden_dim, float eps);
+				  float *__restrict__ out, int seq_len,
+				  int hidden_dim, float eps);
 
 __global__ void attn_scores_kernel(const float *__restrict__ q,
 				   const float *__restrict__ k,
