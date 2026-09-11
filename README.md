@@ -81,4 +81,34 @@ Generation has two phases:
 
 ## Optimizations
 
-The optimization steps are tagged in the git history.
+Throughput is measured on an RTX 4070 (Ada, sm_89) with gpt2-small
+(always-batched prefill, greedy single-token decode).
+
+| Step | Prefill (tok/s) | Decode (tok/s) |
+|---|---|---|
+| Initial CUDA port | 845.8 | 95.0 |
+| Tiled GEMM + GEMV | 3610.7 | 200.2 |
+| Packed add launches + shuffle LN | 4920.6 | 270.7 |
+
+### v0 - Naive CUDA
+
+One-to-one CUDA port of the CPU backend. The projections (gemm) dominate both
+phases (88% of prefill, 69.7% of decode).
+
+### v1 — Tiled GEMM + GEMV
+
+- Replace the naive GEMM with a tiled implementation (16x16 tiles in shared
+  memory) so all global loads are coalesced, and route vector-by-matrix
+  multiplications to a dedicated `gemv_f32_kernel` when there is a single row
+  (the decode phase and the final projection). This fixes the low occupancy and
+  the uncoalesced traffic of the projections; prefill GEMM throughput goes from
+  108 GFLOP/s to 1.2 TFLOP/s.
+- `gemv_f32_kernel` is intrinsically memory bound, AI ~0.5 FLOP/byte, and already
+  operates on the memory-bound slope of the roofline, hitting the bandwidth-limited
+  performance ceiling of 135 GFLOP/s.
+
+### v2 — Packed add launches + shuffle layer norm
+
+- Packed add: all projection bias adds are merged into a single kernel launch,
+  increasing the problem size enough to use the whole GPU.
+- Layer-norm rewritten with warp-shuffle reductions and one block per token.
